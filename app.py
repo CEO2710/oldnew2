@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import shap
 import xgboost as xgb
 from sklearn.model_selection import train_test_split
+import streamlit.components.v1 as components
 
 # 设置中文字体
 plt.rcParams["font.family"] = ["SimHei", "WenQuanYi Micro Hei", "Heiti TC"]
@@ -185,7 +186,7 @@ def main():
                 st.success(f"Prediction: **Low Risk of Unplanned Reoperation**")
                 st.info(f"Risk Probability: {proba:.2%}")
             
-            # 生成SHAP解释（仅保留force plot）
+            # 生成SHAP解释（使用HTML渲染）
             try:
                 st.subheader("🔍 Prediction Explanation")
                 
@@ -193,18 +194,21 @@ def main():
                 explainer = shap.TreeExplainer(model)
                 shap_values = explainer.shap_values(input_df)
                 
-                # 显示SHAP force plot
-                fig, ax = plt.subplots(figsize=(12, 4))
-                shap.force_plot(
-                    explainer.expected_value,
-                    shap_values[0],
+                # 二分类模型：选择类别1（高风险）的SHAP值
+                class_idx = 1  # 0=低风险，1=高风险
+                shap_value = shap_values[class_idx]
+                
+                # 生成HTML格式的force plot
+                force_plot = shap.force_plot(
+                    explainer.expected_value[class_idx],
+                    shap_value,
                     input_df.iloc[0],
                     feature_names=feature_names,
-                    matplotlib=True,
-                    show=False
+                    matplotlib=False  # 禁用matplotlib，使用HTML渲染
                 )
-                plt.tight_layout()
-                st.pyplot(fig)
+                
+                # 在Streamlit中显示HTML
+                components.html(force_plot.html(), height=400)
                 
             except Exception as e:
                 st.warning(f"Failed to generate SHAP explanation: {e}")
