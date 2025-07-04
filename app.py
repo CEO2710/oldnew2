@@ -6,6 +6,7 @@ import shap
 import xgboost as xgb
 from sklearn.model_selection import train_test_split
 import streamlit.components.v1 as components
+from io import BytesIO
 
 # 设置中文字体
 plt.rcParams["font.family"] = ["SimHei", "WenQuanYi Micro Hei", "Heiti TC"]
@@ -52,7 +53,7 @@ def train_model(df):
 # 主应用
 def main():
     st.title("❤️ Unplanned Reoperation Risk Prediction")
-    st.markdown("This application uses XGBoost to predict the risk of unplanned reoperation based on patient characteristics.")
+    st.markdown("This application uses machine learning to predict the risk of unplanned reoperation based on patient characteristics.")
     
     # 加载数据
     df = load_data()
@@ -186,7 +187,7 @@ def main():
                 st.success(f"Prediction: **Low Risk of Unplanned Reoperation**")
                 st.info(f"Risk Probability: {proba:.2%}")
             
-            # 生成SHAP解释（使用HTML渲染）
+            # 生成SHAP力场图（强制使用HTML渲染）
             try:
                 st.subheader("🔍 Prediction Explanation")
                 
@@ -195,7 +196,7 @@ def main():
                 shap_values = explainer.shap_values(input_df)
                 
                 # 二分类模型：选择类别1（高风险）的SHAP值
-                class_idx = 1  # 0=低风险，1=高风险
+                class_idx = 1
                 shap_value = shap_values[class_idx]
                 
                 # 生成HTML格式的force plot
@@ -210,9 +211,41 @@ def main():
                 # 在Streamlit中显示HTML
                 components.html(force_plot.html(), height=400)
                 
+                # 添加导出功能（尝试生成PNG）
+                try:
+                    # 创建临时matplotlib版本的force plot用于导出
+                    fig, ax = plt.subplots(figsize=(12, 4))
+                    shap.force_plot(
+                        explainer.expected_value[class_idx],
+                        shap_value[0],
+                        input_df.iloc[0],
+                        feature_names=feature_names,
+                        matplotlib=True,
+                        show=False
+                    )
+                    plt.tight_layout()
+                    
+                    # 保存为PNG
+                    buf = BytesIO()
+                    plt.savefig(buf, format="png")
+                    buf.seek(0)
+                    
+                    # 添加下载按钮
+                    st.download_button(
+                        label="Download SHAP Plot as PNG",
+                        data=buf,
+                        file_name="shap_force_plot.png",
+                        mime="image/png"
+                    )
+                    plt.close(fig)  # 关闭图形以释放内存
+                    
+                except Exception as export_e:
+                    st.warning(f"无法导出图像: {export_e}")
+                    st.write("您可以使用截图工具手动保存SHAP图")
+                
             except Exception as e:
                 st.warning(f"Failed to generate SHAP explanation: {e}")
-                st.write("SHAP explanation is not available for this model.")
+                st.write("请检查SHAP版本是否兼容 (推荐 v0.42+)")
 
 if __name__ == "__main__":
     main()
